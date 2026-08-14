@@ -25,6 +25,7 @@ A Python toolkit for computing ground truth driver node sets, evaluating structu
 1. Compute Ground Truth Driver Node Sets
 Note: For large models, computation can be time-consuming. It is recommended to compute driver node sets individually for each model.
 
+```python
 from tools.ground_truth_control import compute_ground_truth_control_sets
 
 str_base_dir = "../datasets/targets_test/"
@@ -34,10 +35,11 @@ compute_ground_truth_control_sets(
     str_base_dir=str_base_dir, 
     str_store_dir=str_store_dir
 )
-
+```
 2. Compute Structural Control Node Sets
 Calculate structural control driver nodes using the pre-computed summary metadata:
 
+```python
 from tools.structural_control import compute_structural_control_nodes
 
 str_base_dir = "../datasets/targets_test/"
@@ -49,10 +51,11 @@ compute_structural_control_nodes(
     str_summary_dir=str_summary_dir,
     str_store_dir=str_store_dir
 )
-
+```
 3. Visualize Ground Truth vs. Structural Control Comparisons
 Generate comparative grid plots (e.g., Jaccard index) across models:
 
+```python
 from tools.control_sets_comparison import visualize_structural_control_nodes_vs_ground_truth
 
 str_reference_path = "./structural_driver_summary_by_test/"
@@ -66,7 +69,7 @@ visualize_structural_control_nodes_vs_ground_truth(
     nrows=nrows,
     ncols=ncols
 )
-
+```
 ## 🚀 Workflow Overview
 
 [ Input Datasets ] ──► compute_ground_truth_control_sets() ──► Ground Truth Summaries
