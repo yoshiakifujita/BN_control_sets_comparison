@@ -1,0 +1,68 @@
+# model in CNET format, used by the tool BNS of E. Dubrova
+# see https://people.kth.se/~dubrova/bns.html
+
+#total number of nodes 
+.v 7
+
+# component order:
+#labels of nodes and name of corresponding genes 
+# 1 = RpoN
+# 2 = HrpRS
+# 3 = HrpV
+# 4 = HrpA
+# 5 = HrpG
+# 6 = HrpL
+# 7 = GacSGacA
+
+
+.l 1 RpoN
+.l 2 HrpRS
+.l 3 HrpV
+.l 4 HrpA
+.l 5 HrpG
+.l 6 HrpL
+.l 7 GacSGacA
+
+
+# RpoN
+.n 1 1 7
+0 0
+1 1
+
+# HrpRS
+.n 2 3 3 4 7
+000 0
+001 1
+01- 1
+10- 0
+11- 1
+
+# HrpV
+.n 3 3 1 5 6
+0-- 0
+100 0
+101 1
+11- 0
+
+# HrpA
+.n 4 1 6
+0 0
+1 1
+
+# HrpG
+.n 5 1 6
+0 0
+1 1
+
+# HrpL
+.n 6 2 1 2
+0- 0
+10 0
+11 1
+
+# GacSGacA
+.n 7 1 7
+0 0
+1 1
+
+.e end of file

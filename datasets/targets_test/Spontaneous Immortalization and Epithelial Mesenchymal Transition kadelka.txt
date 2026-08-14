@@ -1,0 +1,104 @@
+# model in CNET format, used by the tool BNS of E. Dubrova
+# see https://people.kth.se/~dubrova/bns.html
+
+#total number of nodes 
+.v 9
+
+# component order:
+#labels of nodes and name of corresponding genes 
+# 1 = Snai2
+# 2 = ESE2
+# 3 = NFkB
+# 4 = p16
+# 5 = p53
+# 6 = Cyclin
+# 7 = TELasa
+# 8 = Rb
+# 9 = E2F
+
+
+.l 1 Snai2
+.l 2 ESE2
+.l 3 NFkB
+.l 4 p16
+.l 5 p53
+.l 6 Cyclin
+.l 7 TELasa
+.l 8 Rb
+.l 9 E2F
+
+
+# Snai2
+.n 1 3 1 2 3
+00- 1
+01- 0
+10- 1
+110 0
+111 1
+
+# ESE2
+.n 2 3 1 2 3
+0-- 1
+10- 0
+110 1
+111 0
+
+# NFkB
+.n 3 4 1 2 3 4
+0000 0
+0001 1
+001- 1
+01-- 1
+1--- 1
+
+# p16
+.n 4 5 1 4 5 7 9
+000-- 0
+001-- 1
+01--- 1
+100-- 0
+1010- 1
+1011- 0
+110-0 0
+110-1 1
+1110- 1
+11110 0
+11111 1
+
+# p53
+.n 5 4 1 3 4 7
+00-0 1
+00-1 0
+010- 0
+0110 1
+0111 0
+1--- 0
+
+# Cyclin
+.n 6 4 1 2 3 4
+0--0 1
+0--1 0
+100- 0
+1010 1
+1011 0
+11-- 0
+
+# TELasa
+.n 7 1 2
+0 1
+1 0
+
+# Rb
+.n 8 2 4 5
+00 0
+01 1
+1- 1
+
+# E2F
+.n 9 3 1 5 8
+000 1
+001 0
+01- 0
+1-- 0
+
+.e end of file

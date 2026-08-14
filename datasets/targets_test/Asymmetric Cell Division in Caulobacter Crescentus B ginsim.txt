@@ -1,0 +1,79 @@
+# model in CNET format, used by the tool BNS of E. Dubrova
+# see https://people.kth.se/~dubrova/bns.html
+
+#total number of nodes 
+.v 9
+
+# component order:
+#labels of nodes and name of corresponding genes 
+# 1 = CtrAb
+# 2 = DivK
+# 3 = PleC
+# 4 = DivJ
+# 5 = DivL
+# 6 = CckA
+# 7 = ChpT
+# 8 = CpdR
+# 9 = ClpXP_RcdA
+
+
+.l 1 CtrAb
+.l 2 DivK
+.l 3 PleC
+.l 4 DivJ
+.l 5 DivL
+.l 6 CckA
+.l 7 ChpT
+.l 8 CpdR
+.l 9 ClpXP_RcdA
+
+
+# CtrAb
+.n 1 2 7 9
+0- 0
+10 1
+11 0
+
+# DivK
+.n 2 2 3 4
+00 0
+01 1
+1- 0
+
+# PleC
+.n 3 1 2
+0 1
+1 0
+
+# DivJ
+.n 4 2 2 3
+0- 0
+10 1
+11 0
+
+# DivL
+.n 5 1 2
+0 1
+1 0
+
+# CckA
+.n 6 1 5
+0 0
+1 1
+
+# ChpT
+.n 7 1 6
+0 0
+1 1
+
+# CpdR
+.n 8 1 7
+0 0
+1 1
+
+# ClpXP_RcdA
+.n 9 1 8
+0 1
+1 0
+
+.e end of file

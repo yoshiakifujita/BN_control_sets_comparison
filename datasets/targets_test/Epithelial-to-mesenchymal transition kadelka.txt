@@ -1,0 +1,68 @@
+# model in CNET format, used by the tool BNS of E. Dubrova
+# see https://people.kth.se/~dubrova/bns.html
+
+#total number of nodes 
+.v 5
+
+# component order:
+#labels of nodes and name of corresponding genes 
+# 1 = Snail
+# 2 = mu34
+# 3 = Zeb
+# 4 = mu200
+# 5 = Input
+
+
+.l 1 Snail
+.l 2 mu34
+.l 3 Zeb
+.l 4 mu200
+.l 5 Input
+
+
+# Snail
+.n 1 3 1 2 5
+111 0
+110 0
+101 1
+100 0
+011 1
+010 0
+001 1
+000 0
+
+# mu34
+.n 2 2 1 3
+11 0
+10 0
+01 0
+00 1
+
+# Zeb
+.n 3 3 1 3 4
+111 1
+110 1
+101 0
+100 1
+011 0
+010 1
+001 0
+000 1
+
+# mu200
+.n 4 3 1 3 4
+111 1
+110 0
+101 0
+100 0
+011 1
+010 1
+001 1
+000 1
+
+# Input
+.n 5 1 5
+1 1
+0 0
+
+.e end of file

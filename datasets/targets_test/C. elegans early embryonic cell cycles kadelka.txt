@@ -1,0 +1,125 @@
+# model in CNET format, used by the tool BNS of E. Dubrova
+# see https://people.kth.se/~dubrova/bns.html
+
+#total number of nodes 
+.v 8
+
+# component order:
+#labels of nodes and name of corresponding genes 
+# 1 = cdk2_cyclinE
+# 2 = cdc_25_1
+# 3 = cul1_lin23
+# 4 = lin_35_efl_1_dpl_1
+# 5 = cdk1_cyclinB
+# 6 = fzr_1
+# 7 = cdc14_fzy1
+# 8 = cki1
+
+
+.l 1 cdk2_cyclinE
+.l 2 cdc_25_1
+.l 3 cul1_lin23
+.l 4 lin_35_efl_1_dpl_1
+.l 5 cdk1_cyclinB
+.l 6 fzr_1
+.l 7 cdc14_fzy1
+.l 8 cki1
+
+
+# cdk2_cyclinE
+.n 1 5 1 2 3 4 8
+00--- 0
+01000 1
+01001 0
+0101- 0
+011-- 0
+10000 1
+10001 0
+1001- 0
+101-- 0
+1100- 1
+11010 1
+11011 0
+11100 1
+11101 0
+1111- 0
+
+# cdc_25_1
+.n 2 2 2 3
+0- 0
+10 1
+11 0
+
+# cul1_lin23
+.n 3 1 1
+0 0
+1 1
+
+# lin_35_efl_1_dpl_1
+.n 4 3 1 3 4
+000 0
+001 1
+01- 1
+10- 0
+110 0
+111 1
+
+# cdk1_cyclinB
+.n 5 6 2 4 5 6 7 8
+000--- 0
+001000 1
+001001 0
+00101- 0
+0011-- 0
+010000 1
+010001 0
+01001- 0
+0101-- 0
+01100- 1
+011010 1
+011011 0
+011100 1
+011101 0
+01111- 0
+100000 1
+100001 0
+10001- 0
+1001-- 0
+10100- 1
+101010 1
+101011 0
+101100 1
+101101 0
+10111- 0
+11000- 1
+110010 1
+110011 0
+110100 1
+110101 0
+11011- 0
+1110-- 1
+11110- 1
+111110 1
+111111 0
+
+# fzr_1
+.n 6 1 7
+0 0
+1 1
+
+# cdc14_fzy1
+.n 7 3 1 5 7
+000 0
+001 1
+01- 1
+10- 0
+110 0
+111 1
+
+# cki1
+.n 8 2 6 7
+00 0
+01 1
+1- 1
+
+.e end of file
