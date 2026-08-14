@@ -21,7 +21,7 @@ A Python toolkit for computing ground truth driver node sets, evaluating structu
 
 ```
 
-## ⚡ Quick Start
+## ⚡ Usage
 1. Compute Ground Truth Driver Node Sets
 Note: For large models, computation can be time-consuming. It is recommended to compute driver node sets individually for each model.
 
