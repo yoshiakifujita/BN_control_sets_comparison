@@ -1,4 +1,4 @@
-# Network Control Analysis Pipeline
+# Boolean networks ground truth control node sets and structural control node sets comparison pipeline
 
 A Python toolkit for computing ground truth driver node sets, evaluating structural control node sets, and visualizing comparative metrics (e.g., Jaccard Similarity) across large network models.
 
