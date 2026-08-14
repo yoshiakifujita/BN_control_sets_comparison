@@ -71,13 +71,14 @@ visualize_structural_control_nodes_vs_ground_truth(
 )
 ```
 ## 🚀 Workflow Overview
-
+```text
 [ Input Datasets ] ──► compute_ground_truth_control_sets() ──► Ground Truth Summaries
                                                                      │
 [ Input Datasets ] ◄── compute_structural_control_nodes() ◄──────────┘
         │
         ▼
 Structural Control Summaries ──► visualize_structural_control_nodes_vs_ground_truth() ──► Plots/Evaluation
+```
 
 ## 💡 Usage Notes & Tips
 Large Models: Run compute_ground_truth_control_sets per model in dedicated sub-jobs if working in an HPC / cluster environment to prevent memory bottlenecks.
