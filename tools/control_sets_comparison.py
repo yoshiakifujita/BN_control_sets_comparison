@@ -157,128 +157,180 @@ def gather_data(str_reference_path):
 
     return model_folders
 
-def visualize_structural_control_nodes_vs_ground_truth(str_reference_path, measure_type, nrows, ncols):
-    """Visualize similarity (Jaccard or undershoot) between ground truth driver node sets and structural control sets (FVS, MDS, and SC) of interaction graphs and effective graphs across distinct edge thresholds for target models.
-    
+def visualize_structural_control_nodes_vs_ground_truth(
+    str_reference_path, similarity_type, summary_type, nrows, ncols, max_observations
+):
+    """Visualize metric curves (Jaccard, Undershoot, or Overshoot) between ground truth
+
+    driver node sets and structural control sets (FVS, MDS, and SC) across distinct edge thresholds.
+
     Args:
-        str_reference_path (str): Path to the directory where target Boolean network structural control set information are stored.
-        measure_type (str)      : Specify similarity either Jaccard or undershoot
+        str_reference_path (str): Path to directory where Boolean network files are stored.
+        similarity_type (str)   : Metric type - "Jaccard", "Undershoot", or "Overshoot"
+        summary_type (str)      : Aggregation method - "mean", "max", or "min"
+        nrows (int)             : Number of subplot rows
+        ncols (int)             : Number of subplot columns
+        max_observations (int)  : Maximum observations of distinct edge effectiveness
     """
-    
-    # Gather data (order by nomber of nodes)
+
+    # Gather model folders ordered by node count
     model_folders = gather_data(str_reference_path)
 
-    
-    # Set up 5x8 subplot grid
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(28, 16))
+    total_plots = nrows * ncols
+    fig, axes = plt.subplots(
+        nrows=nrows, ncols=ncols, figsize=(ncols * 3.5, nrows * 3.2)
+    )
     axes = axes.flatten()
 
-    # Set up plots colors
+    # Define color scheme
     fvs_color = "tab:blue"
     mds_color = "tab:orange"
     sc_color = "tab:green"
-    
-    legend_lines = None
-    
-    # Loop over each model directory with index
-    model_title_mapping=[]
 
-    # Iterate visualizations for each model
-    for i, folder in enumerate(model_folders[:40]):
+    legend_lines = None
+    model_title_mapping = []
+
+    # Iterate across models
+    for i, folder in enumerate(model_folders[:total_plots]):
         model_name = folder.name
         display_title = f"Model {i + 1}"
 
-        # Load Boolean network model
-        input_cnet = "../datasets/targets/" + model_name + ".txt"
+        # Load Boolean network and network structure
+        input_cnet = f"../datasets/targets/{model_name}.txt"
         bn = BN.from_file(input_cnet, type="cnet")
         IG = bn.structural_graph()
 
-        # Get distinct edge effectiveness threshold
         csv_file = folder / "edge_effectiveness.csv"
         edge_counts = pd.read_csv(csv_file)
 
-        # Compute similarity score specified by measure_type argument, either Jaccard or undershoot
+        # Compute metric score across thresholds
         IG_Score, similarity_scores = (
             compare_ground_truth_structural_control_sets_iterate(
                 bn=bn,
                 f=folder,
                 edge_counts=edge_counts,
-                measure_type=measure_type,
+                similarity_type=similarity_type,
             )
         )
 
-        # Extract raw threshold vectors from Jaccard scores
+        # Extract raw threshold vectors
         raw_thresholds = [r[1] for r in similarity_scores]
-        raw_fvs = [r[2]["mean"] for r in similarity_scores]
-        raw_mds = [r[3]["mean"] for r in similarity_scores]
-        raw_sc = [r[4]["mean"] for r in similarity_scores]
-    
-        number_of_measurements = str(len(edge_counts)-1)
+        raw_fvs = [r[2][summary_type] for r in similarity_scores]
+        raw_mds = [r[3][summary_type] for r in similarity_scores]
+        raw_sc = [r[4][summary_type] for r in similarity_scores]
 
+        # Log metadata
         model_title_mapping.append(
             {
                 "display_title": display_title,
                 "model_name": model_name,
                 "number_of_nodes": IG.number_of_nodes(),
                 "number_of_edges": IG.number_of_edges(),
-                "number_of_measurements": number_of_measurements,
+                "number_of_measurements": str(len(edge_counts) - 1),
             }
         )
 
-        # Apply downsampling capped at max_points=15
-        thresholds, fvs_mean = downsample_multi_series(raw_thresholds, raw_fvs, max_points=15)
-        _, mds_mean = downsample_multi_series(raw_thresholds, raw_mds, max_points=15)
-        _, sc_mean = downsample_multi_series(raw_thresholds, raw_sc, max_points=15)
-    
-        display_title = display_title + f" #nodes {IG.number_of_nodes()}"
+        # Synchronized downsampling capped at 15 points
+        thresholds, [fvs_pts, mds_pts, sc_pts] = downsample_multi_series(
+            raw_thresholds,
+            [raw_fvs, raw_mds, raw_sc],
+            max_points=max_observations,
+        )
 
         ig_x = -0.05
-        ig_fvs = IG_Score[2]["mean"]
-        ig_mds = IG_Score[3]["mean"]
-        ig_sc = IG_Score[4]["mean"]
-    
+        ig_fvs = IG_Score[2][summary_type]
+        ig_mds = IG_Score[3][summary_type]
+        ig_sc = IG_Score[4][summary_type]
+
         ax = axes[i]
-    
-        # Compute Smoothed Curves (Uniform x-grid) ---
-        x_fvs_smooth, y_fvs_smooth = get_smooth_curve(thresholds, fvs_mean)
-        x_mds_smooth, y_mds_smooth = get_smooth_curve(thresholds, mds_mean)
-        x_sc_smooth, y_sc_smooth = get_smooth_curve(thresholds, sc_mean)
-    
-        # Plot Smooth Lines + Raw Markers ---
-        l1 = ax.plot(x_fvs_smooth, y_fvs_smooth, color=fvs_color, lw=1.8)[0]
-        l2 = ax.plot(x_mds_smooth, y_mds_smooth, color=mds_color, lw=1.8)[0]
-        l3 = ax.plot(x_sc_smooth, y_sc_smooth, color=sc_color, lw=1.8)[0]
-    
-        # Overlay raw discrete observation points as markers
+
+        # Compute smoothed curve paths
+        x_fvs_smooth, y_fvs_smooth = get_smooth_curve(thresholds, fvs_pts)
+        x_mds_smooth, y_mds_smooth = get_smooth_curve(thresholds, mds_pts)
+        x_sc_smooth, y_sc_smooth = get_smooth_curve(thresholds, sc_pts)
+
+        # Calculate Y-axis bounds
+        model_y_max = max(
+            np.nanmax(y_fvs_smooth) if len(y_fvs_smooth) else 0,
+            np.nanmax(y_mds_smooth) if len(y_mds_smooth) else 0,
+            np.nanmax(y_sc_smooth) if len(y_sc_smooth) else 0,
+            ig_fvs or 0,
+            ig_mds or 0,
+            ig_sc or 0 if ig_sc is not None else 0,
+        )
+
+        is_overshoot = similarity_type.lower() == "overshoot"
+        y_upper_limit = (
+            max(1.05, model_y_max * 1.08) if is_overshoot else 1.05
+        )
+
+        # Overshoot visual cues (horizontal reference line, shading, and peak text)
+        if is_overshoot and model_y_max > 1.0:
+            ax.axhline(
+                1.0,
+                color="gray",
+                linestyle="--",
+                linewidth=0.8,
+                alpha=0.7,
+                zorder=1,
+            )
+            ax.axhspan(1.0, y_upper_limit, color="red", alpha=0.04, zorder=0)
+            ax.text(
+                0.95,
+                0.92,
+                f"Peak: {model_y_max:.1f}",
+                transform=ax.transAxes,
+                fontsize=7,
+                color="crimson",
+                fontweight="bold",
+                ha="right",
+                va="top",
+            )
+
+        # Plot smooth curves
+        l1 = ax.plot(
+            x_fvs_smooth, y_fvs_smooth, color=fvs_color, lw=1.8, zorder=2
+        )[0]
+        l2 = ax.plot(
+            x_mds_smooth, y_mds_smooth, color=mds_color, lw=1.8, zorder=2
+        )[0]
+        l3 = ax.plot(
+            x_sc_smooth, y_sc_smooth, color=sc_color, lw=1.8, zorder=2
+        )[0]
+
+        # Discrete observation markers
         ax.plot(
             thresholds,
-            fvs_mean,
+            fvs_pts,
             color=fvs_color,
             marker="s",
             ls="None",
             ms=4,
-            alpha=0.7,
+            alpha=0.85,
+            zorder=3,
         )
         ax.plot(
             thresholds,
-            mds_mean,
+            mds_pts,
             color=mds_color,
             marker="^",
             ls="None",
             ms=4,
-            alpha=0.7,
+            alpha=0.85,
+            zorder=3,
         )
         ax.plot(
             thresholds,
-            sc_mean,
+            sc_pts,
             color=sc_color,
             marker="d",
             ls="None",
             ms=4,
-            alpha=0.7,
+            alpha=0.85,
+            zorder=3,
         )
-    
-        # Plot initial graph (IG) baseline points ---
+
+        # IG baseline markers
         ax.plot(
             ig_x,
             ig_fvs,
@@ -288,6 +340,7 @@ def visualize_structural_control_nodes_vs_ground_truth(str_reference_path, measu
             mec="black",
             mew=0.8,
             ls="None",
+            zorder=3,
         )
         ax.plot(
             ig_x,
@@ -298,6 +351,7 @@ def visualize_structural_control_nodes_vs_ground_truth(str_reference_path, measu
             mec="black",
             mew=0.8,
             ls="None",
+            zorder=3,
         )
         if ig_sc is not None:
             ax.plot(
@@ -309,48 +363,61 @@ def visualize_structural_control_nodes_vs_ground_truth(str_reference_path, measu
                 mec="black",
                 mew=0.8,
                 ls="None",
+                zorder=3,
             )
-    
-        ax.set_ylim(-0.05, 1.05)
-    
-        # Y-label on the left-most column
-        if i % 8 == 0:
-            ax.set_ylabel(f"Avg {measure_type}", fontsize=10)
-    
+
+        ax.set_ylim(-0.05, y_upper_limit)
+
+        # Set Y-axis labels on left-most column
+        if i % ncols == 0:
+            ax.set_ylabel(
+                f"{summary_type.capitalize()} {similarity_type}", fontsize=10
+            )
+
         ax.tick_params(axis="y", labelsize=8)
-    
+
         if legend_lines is None:
             legend_lines = [l1, l2, l3]
-    
-        # Subplot Title & X-ticks ---
-        ax.set_title(display_title, fontsize=9, pad=4)
-    
-        # X-Ticks on all subplots (showing raw threshold steps)
+
+        # Subplot Title & X-ticks
+        ax.set_title(
+            f"{display_title} #nodes {IG.number_of_nodes()}",
+            fontsize=9,
+            pad=4,
+        )
         xticks = [ig_x] + list(thresholds)
         xticklabels = ["IG"] + [f"{t:.2f}" for t in thresholds]
         ax.set_xticks(xticks)
         ax.set_xticklabels(xticklabels, rotation=45, fontsize=7)
 
-    # Global Figure Legend & Layout ---
+    # Clean up empty subplots if nrows * ncols > len(model_folders)
+    for j in range(i + 1, total_plots):
+        fig.delaxes(axes[j])
+
+    # 1. Combined Overall Title & Legend Text in Suptitle
+    # Or format as: f"{similarity_type.capitalize()} ({summary_type.capitalize()})   —   Legend:  ■ FVS   ▲ MDS   ◆ SC"
+    combined_title = f"{similarity_type.capitalize()} ({summary_type.capitalize()})"
+    fig.suptitle(combined_title, fontsize=15, fontweight="bold", y=0.98, x=0.25, ha="left")
+
+    # 2. Global Legend placed on the right side at the exact same vertical position (y=0.98)
     fig.legend(
         legend_lines,
         ["FVS", "MDS", "SC"],
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.98),
+        loc="upper right",
+        bbox_to_anchor=(0.95, 0.995),
         ncol=3,
-        fontsize=12,
+        fontsize=11,
         frameon=True,
     )
-    
+
+    # 3. Adjust top margin to accommodate the single top header row
     plt.subplots_adjust(
-        top=0.92, bottom=0.08, left=0.05, right=0.95, hspace=0.4, wspace=0.35
+        top=0.92, bottom=0.08, left=0.05, right=0.95, hspace=0.45, wspace=0.35
     )
+
+    out_file = f"all_networks_analysis_{similarity_type.lower()}_{summary_type.lower()}.png"
     
-    plt.savefig(
-        "all_40_networks_analysis_jaccard_smoothed_new.png",
-        dpi=300,
-        bbox_inches="tight",
-    )
+    plt.savefig(out_file, dpi=300, bbox_inches="tight")
 
     return plt
 
@@ -481,7 +548,7 @@ def undershoot(g, p):
 
     return len(set_g - set_p) / len(set_g)
 
-def compare_list_of_lists(list1, list2, measure_type):
+def compare_list_of_lists(list1, list2, similarity_type):
     """
     Compute pairwise similarities between every sublist in list1
     and every sublist in list2.
@@ -501,17 +568,17 @@ def compare_list_of_lists(list1, list2, measure_type):
             "mean": None,
             "all_scores": []
         }
-    if measure_type == 'Jaccard':
+    if similarity_type == 'Jaccard':
         scores = [
             jaccard_similarity(a, b)
             for a, b in product(list1, list2)
         ]
-    elif measure_type == 'Overshoot':
+    elif similarity_type == 'Overshoot':
         scores = [
             overshoot(a, b)
             for a, b in product(list1, list2)
         ]
-    elif measure_type == 'Undershoot':
+    elif similarity_type == 'Undershoot':
         scores = [
             undershoot(a, b)
             for a, b in product(list1, list2)
@@ -579,14 +646,14 @@ def compare_ground_truth_structural_control_sets(bn, f, edge_counts):
 
     return IG_Score, jaccard_scores
 
-def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, measure_type):
+def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, similarity_type):
     """Compute similarity scores in either Jaccard, overshoot, or undershoot between structural control sets (FVS, MDS, and SC) and ground truth driver node sets, of interaction graphs and effective graphs across distinct edge thresholds for target models.
     
     Args:
         bn (cana Boolean network object): Target model Boolean network object.
         f  (str)                        : Path to the directory where target model's structural control sets are stored.
         edge_counts (pandas dataframe)  : Target model's distinct edge effectiveness are stored.
-        measure_type (str)              : Similarity type, either Jaccard, Overshoot, or Undershoot is accepted.
+        similarity_type (str)           : Similarity type, either Jaccard, Overshoot, or Undershoot is accepted.
     Returns:
         IG_Score (list)       : Return similarity score of the interaction graph.
         similarity_scores (list) : Return similarity score of the effective graphs with distinct edge effectiveness thresholds.
@@ -599,9 +666,9 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, mea
     df_ig=pd.read_csv(input_csv)
     driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_ig)
     
-    ig_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, measure_type)
-    ig_mds_scores = compare_list_of_lists(driver_sets, mds_sets, measure_type)
-    ig_sc_scores = compare_list_of_lists(driver_sets, sc_sets, measure_type)
+    ig_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+    ig_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+    ig_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
     
     IG_Score = [EG.number_of_edges(), 0.0, ig_fvs_scores, ig_mds_scores, ig_sc_scores]
     
@@ -615,9 +682,9 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, mea
     df_eg=pd.read_csv(input_csv)
     driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_eg)
     
-    eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, measure_type)
-    eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, measure_type)
-    eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, measure_type)
+    eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+    eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+    eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
     
     tmp_list = [EG.number_of_edges(),threshold, eg_fvs_scores, eg_mds_scores, eg_sc_scores]
     
@@ -635,9 +702,9 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, mea
         df_eg=pd.read_csv(input_csv)
         driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_eg)
     
-        eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, measure_type)
-        eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, measure_type)
-        eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, measure_type)
+        eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+        eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+        eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
         
         tmp_list = [EG.number_of_edges(), threshold, eg_fvs_scores, eg_mds_scores, eg_sc_scores]
         similarity_scores.append(tmp_list)
