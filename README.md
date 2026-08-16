@@ -59,15 +59,19 @@ Generate comparative grid plots (e.g., Jaccard index) across models:
 from tools.control_sets_comparison import visualize_structural_control_nodes_vs_ground_truth
 
 str_reference_path = "./structural_driver_summary_by_test/"
-measure_type = "Jaccard"
-nrows = 3
-ncols = 4
+similarity_type="Jaccard" # Either "Jaccard", "Overshoot", or "Undershoot"
+summary_type="mean" # Either "mean", "max", or "min"
+nrows=3
+ncols=4
+max_observations=15 # Maximum number of edge effectiveness threshold observations
 
 visualize_structural_control_nodes_vs_ground_truth(
     str_reference_path=str_reference_path,
-    measure_type=measure_type,
+    similarity_type=similarity_type
+    summary_type=summary_type,
     nrows=nrows,
-    ncols=ncols
+    ncols=ncols,
+    max_observations=max_observations
 )
 ```
 ## 🚀 Workflow Overview
