@@ -10,6 +10,109 @@ import re
 import matplotlib.pyplot as plt
 from scipy.interpolate import PchipInterpolator
 
+from scipy import stats
+import textwrap
+from sklearn.metrics import roc_curve, auc, precision_score, accuracy_score, recall_score
+
+def actionability_per_node_boxplot(df_actionability_all, analysis_level):
+
+    if analysis_level=="Edge":
+        target_column='edge_actionability'
+        analysis_title='Edge Level Analysis'
+    elif analysis_level=="Node":
+        target_column='node_actionability'
+        analysis_title='Node Level Analysis'        
+
+    # 1. Separate the groups
+    drivers = df_actionability_all[df_actionability_all['driver_node'] == 'driver'][target_column]
+    non_drivers = df_actionability_all[df_actionability_all['driver_node'] == 'non-driver'][target_column]
+    
+    # 2. Compute Statistics
+    # We use Mann-Whitney U as it's robust for biological viability data
+    u_stat, p_val_u = stats.mannwhitneyu(drivers, non_drivers, alternative='two-sided')
+    
+    # 3. Set up the figure
+    plt.figure(figsize=(4.2, 6))
+    
+    # 4. Create the labels with Sample Sizes (n=)
+    n_drivers = len(drivers) / 2
+    n_non_drivers = len(non_drivers) / 2
+    labels = [f'Driver \n(n={n_drivers})', f'Non-Driver \n(n={n_non_drivers})']
+    
+    # 5. Plotting
+    data_to_plot = [drivers, non_drivers]
+    #bp = plt.boxplot(data_to_plot, labels=labels, patch_artist=True, notch=True, widths=0.4)
+    
+    bp = plt.boxplot(
+        data_to_plot,
+        tick_labels=labels,
+        patch_artist=True,
+        notch=True,
+        widths=0.4,
+        showmeans=True,
+        medianprops=dict(color='black', linewidth=2.5),
+        meanprops=dict(
+            marker='D',
+            markerfacecolor='white',
+            markeredgecolor='black',
+            markersize=8
+        ),
+        boxprops=dict(color='black', linewidth=1.5),
+        whiskerprops=dict(color='black', linewidth=1.5),
+        capprops=dict(color='black', linewidth=1.5)
+    )
+    
+    # 6. Aesthetics
+    colors = ['crimson', 'royalblue']
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.6)
+    
+    # 7. Add the Statistics (U-stat and P-Value) to the plot
+    y_max = max(df_actionability_all[target_column])
+    y_pos = y_max * 1.05 
+    
+    # Format strings
+    # Using integer for u_stat as it is a count of rank sums
+    #u_text = f'$U = {u_stat:,.0f}$' 
+    p_text = f'$p = {p_val_u:.2e}$' if p_val_u < 0.001 else f'$p = {p_val_u:.4f}$'
+    
+    # Combine texts with a newline
+    # We place this at y_pos * 1.02 to ensure the bracket doesn't overlap the text
+    #stats_label = f"{u_text}\n{p_text}"
+    stats_label = f"{(p_text)}"
+    
+    # Draw the line
+    plt.plot([1, 1, 2, 2], [y_pos*0.98, y_pos, y_pos, y_pos*0.98], lw=1.5, c='black')
+    
+    # Place the text
+    plt.text(1.5, y_pos * 1.02, stats_label, ha='center', va='bottom', 
+             fontsize=16, fontweight='bold', linespacing=1.5)
+    
+    # Adjust y-limit to ensure the double-line text isn't cut off
+    plt.ylim(0, y_pos * 1.25)
+    
+    # --- MODIFICATIONS START HERE ---
+    
+    # 1. Set Y-limit with a negative margin (e.g., -0.05) to add space under 0
+    # The top remains high enough to fit the stats
+    plt.ylim(-0.05, y_pos * 1.2)
+    
+    # 2. Explicitly set Y-ticks to stop at 1.0
+    # This prevents 1.2 or other high numbers from appearing on the axis
+    plt.yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0], fontsize=14)
+    
+    # 8. Labels and Title
+    plt.title(analysis_title, fontsize=18, pad=20)
+    #plt.ylabel('Actionability', fontsize=16)
+    plt.grid(axis='y', linestyle='--', alpha=0.4)
+    plt.xticks(fontsize=18)
+    
+    # 9. Save and Show
+    plt.tight_layout()
+    #plt.savefig('edge_actionability_with_stats.png', dpi=400)
+    plt.show()
+
 def downsample_multi_series(x, y_data, max_points=15):
     """
     Downsamples x and y_data to at most max_points.
@@ -157,21 +260,87 @@ def gather_data(str_reference_path):
 
     return model_folders
 
-def visualize_structural_control_nodes_vs_ground_truth(
+def structural_control_nodes_vs_ground_truth(
     str_reference_path, similarity_type, summary_type, nrows, ncols, max_observations
 ):
-    """Visualize metric curves (Jaccard, Undershoot, or Overshoot) between ground truth
+    """Return metrics (Jaccard, Undershoot, or Overshoot) of Interaction graph for debug
 
     driver node sets and structural control sets (FVS, MDS, and SC) across distinct edge thresholds.
 
     Args:
         str_reference_path (str): Path to directory where Boolean network files are stored.
         similarity_type (str)   : Metric type - "Jaccard", "Undershoot", or "Overshoot"
-        summary_type (str)      : Aggregation method - "mean", "max", or "min"
+        summary_type (str)      : Aggregation method - "mean", "max", "min", "max-mean", or "min-mean"
         nrows (int)             : Number of subplot rows
         ncols (int)             : Number of subplot columns
         max_observations (int)  : Maximum observations of distinct edge effectiveness
     """
+
+    # Gather model folders ordered by node count
+    model_folders = gather_data(str_reference_path)
+
+    model_title_mapping = []
+    ig_score_records = []
+
+    # Iterate across models
+    for i, folder in enumerate(model_folders):
+        model_name = folder.name
+        display_title = f"Model {i + 1}"
+
+        # Load Boolean network and network structure
+        input_cnet = f"../datasets/targets/{model_name}.txt"
+        bn = BN.from_file(input_cnet, type="cnet")
+        IG = bn.structural_graph()
+
+        csv_file = folder / "edge_effectiveness.csv"
+        edge_counts = pd.read_csv(csv_file)
+
+        # Compute metric score across thresholds
+        IG_Score, similarity_scores = (
+            compare_ground_truth_structural_control_sets_iterate(
+                bn=bn,
+                f=folder,
+                edge_counts=edge_counts,
+                similarity_type=similarity_type,
+                summary_type=summary_type
+            )
+        )
+
+        ig_score_records.append({
+                    "model_index": i + 1,
+                    "model_name": model_name,
+                    "number_of_nodes": IG.number_of_nodes(),
+                    "number_of_edges": IG.number_of_edges(),
+                    "raw_ig_score": IG_Score
+                })
+
+    return ig_score_records
+
+def visualize_structural_control_nodes_vs_ground_truth(
+    str_reference_path, similarity_type, summary_type, nrows, ncols, max_observations
+):
+    """Visualize metric curves (Jaccard, Undershoot, or Overshoot) between ground truth
+    driver node sets and structural control sets (FVS, MDS, and SC) across distinct edge thresholds.
+    """
+
+    # Helper to safely extract metric score regardless of summary_type format
+    def get_score(score_dict, summary, default=0.0):
+        if not isinstance(score_dict, dict):
+            return default
+
+        # 1. Try 'summary_score' first (used in max-mean, min-mean, etc.)
+        val = score_dict.get("summary_score")
+        if val is not None:
+            return val
+
+        # 2. Try explicit summary key (used in 'max', 'min', 'mean')
+        val = score_dict.get(summary)
+        if val is not None:
+            return val
+
+        # 3. Fallback to 'mean' or provided default
+        val = score_dict.get("mean")
+        return val if val is not None else default
 
     # Gather model folders ordered by node count
     model_folders = gather_data(str_reference_path)
@@ -189,6 +358,7 @@ def visualize_structural_control_nodes_vs_ground_truth(
 
     legend_lines = None
     model_title_mapping = []
+    ig_score_records = []
 
     # Iterate across models
     for i, folder in enumerate(model_folders[:total_plots]):
@@ -210,14 +380,23 @@ def visualize_structural_control_nodes_vs_ground_truth(
                 f=folder,
                 edge_counts=edge_counts,
                 similarity_type=similarity_type,
+                summary_type=summary_type
             )
         )
 
-        # Extract raw threshold vectors
+        # Extract raw threshold vectors using unified get_score
         raw_thresholds = [r[1] for r in similarity_scores]
-        raw_fvs = [r[2][summary_type] for r in similarity_scores]
-        raw_mds = [r[3][summary_type] for r in similarity_scores]
-        raw_sc = [r[4][summary_type] for r in similarity_scores]
+        raw_fvs = [get_score(r[2], summary_type) for r in similarity_scores]
+        raw_mds = [get_score(r[3], summary_type) for r in similarity_scores]
+        raw_sc = [get_score(r[4], summary_type) for r in similarity_scores]
+
+        ig_score_records.append({
+                    "model_index": i + 1,
+                    "model_name": model_name,
+                    "number_of_nodes": IG.number_of_nodes(),
+                    "number_of_edges": IG.number_of_edges(),
+                    "raw_ig_score": IG_Score
+                })
 
         # Log metadata
         model_title_mapping.append(
@@ -230,7 +409,7 @@ def visualize_structural_control_nodes_vs_ground_truth(
             }
         )
 
-        # Synchronized downsampling capped at 15 points
+        # Synchronized downsampling capped at max_observations
         thresholds, [fvs_pts, mds_pts, sc_pts] = downsample_multi_series(
             raw_thresholds,
             [raw_fvs, raw_mds, raw_sc],
@@ -238,10 +417,9 @@ def visualize_structural_control_nodes_vs_ground_truth(
         )
 
         ig_x = -0.05
-        ig_fvs = IG_Score[2][summary_type]
-        ig_mds = IG_Score[3][summary_type]
-        ig_sc = IG_Score[4][summary_type]
-
+        ig_fvs = get_score(IG_Score[2], summary_type)
+        ig_mds = get_score(IG_Score[3], summary_type)
+        ig_sc = get_score(IG_Score[4], summary_type)
         ax = axes[i]
 
         # Compute smoothed curve paths
@@ -419,7 +597,7 @@ def visualize_structural_control_nodes_vs_ground_truth(
     
     plt.savefig(out_file, dpi=300, bbox_inches="tight")
 
-    return plt
+    return plt, ig_score_records, model_title_mapping
 
 def summarize_control_sets(df_ig):
 
@@ -591,6 +769,67 @@ def compare_list_of_lists(list1, list2, similarity_type):
         "all_scores": scores
     }
 
+from itertools import product
+
+def two_steps_compare_list_of_lists(list1, list2, similarity_type, summary_type):
+    """
+    Computes pairwise similarities between ground truth sublists (list1) 
+    and prediction sublists (list2), summarizing across predictions per ground truth.
+
+    :param list1: List of ground truth sublists [g1, g2, g3]
+    :param list2: List of prediction sublists [p1, p2]
+    :param similarity_type: 'Jaccard', 'Overshoot', or 'Undershoot'
+    :param summary_type: 'max-mean' (mean of GT maxes) or 'min-mean' (mean of GT mins)
+    :return: Dictionary containing the aggregated final score and per-GT scores
+    """
+    # Remove empty sublists
+    list1 = [x for x in list1 if len(x) > 0]
+    list2 = [x for x in list2 if len(x) > 0]
+
+    # Return None if either input list becomes empty
+    if len(list1) == 0 or len(list2) == 0:
+        return {
+            "summary_score": None,
+            "gt_scores": [],
+            "summary_type": summary_type
+        }
+
+    # Select the metric function
+    sim_funcs = {
+        'Jaccard': jaccard_similarity,
+        'Overshoot': overshoot,
+        'Undershoot': undershoot
+    }
+    
+    if similarity_type not in sim_funcs:
+        raise ValueError(f"Unsupported similarity_type: {similarity_type}")
+        
+    metric_func = sim_funcs[similarity_type]
+
+    # Step 1: For each GT (g_i), collect similarity scores against all predictions (p_j)
+    gt_scores = []
+    
+    for g in list1:
+        # Pairwise scores for current ground truth across all predictions
+        preds_for_g = [metric_func(g, p) for p in list2]
+        
+        # Aggregate across predictions for this GT based on summary_type
+        if summary_type == "max-mean":
+            gt_scores.append(max(preds_for_g))
+        elif summary_type == "min-mean":
+            gt_scores.append(min(preds_for_g))
+        else:
+            raise ValueError(f"Unsupported summary_type: {summary_type}. Use 'max-mean' or 'min-mean'.")
+
+    # Step 2: Compute mean across all ground truths
+    overall_mean = sum(gt_scores) / len(gt_scores)
+
+    return {
+        "summary_score": overall_mean,
+        "gt_scores": gt_scores,          # The max (or min) score computed for each GT
+        "summary_type": summary_type
+    }
+
 def compare_ground_truth_structural_control_sets(bn, f, edge_counts):
 
     # Interaction graph
@@ -646,7 +885,7 @@ def compare_ground_truth_structural_control_sets(bn, f, edge_counts):
 
     return IG_Score, jaccard_scores
 
-def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, similarity_type):
+def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, similarity_type, summary_type):
     """Compute similarity scores in either Jaccard, overshoot, or undershoot between structural control sets (FVS, MDS, and SC) and ground truth driver node sets, of interaction graphs and effective graphs across distinct edge thresholds for target models.
     
     Args:
@@ -665,10 +904,12 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, sim
     
     df_ig=pd.read_csv(input_csv)
     driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_ig)
+
+    ig_fvs_scores, ig_mds_scores, ig_sc_scores = compute_similarity_scores(driver_sets, fvs_sets, mds_sets, sc_sets, similarity_type, summary_type)
     
-    ig_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
-    ig_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
-    ig_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
+    #ig_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+    #ig_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+    #ig_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
     
     IG_Score = [EG.number_of_edges(), 0.0, ig_fvs_scores, ig_mds_scores, ig_sc_scores]
     
@@ -681,10 +922,12 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, sim
     input_csv=f / 'st_control_eg_00.csv'
     df_eg=pd.read_csv(input_csv)
     driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_eg)
+
+    eg_fvs_scores, eg_mds_scores, eg_sc_scores = compute_similarity_scores(driver_sets, fvs_sets, mds_sets, sc_sets, similarity_type, summary_type)
     
-    eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
-    eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
-    eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
+    #eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+    #eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+    #eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
     
     tmp_list = [EG.number_of_edges(),threshold, eg_fvs_scores, eg_mds_scores, eg_sc_scores]
     
@@ -701,13 +944,27 @@ def compare_ground_truth_structural_control_sets_iterate(bn, f, edge_counts, sim
         input_csv = f / f"st_control_eg_{n:02d}.csv"
         df_eg=pd.read_csv(input_csv)
         driver_sets, fvs_sets, mds_sets, sc_sets = summarize_control_sets(df_ig=df_eg)
-    
-        eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
-        eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
-        eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
+
+        eg_fvs_scores, eg_mds_scores, eg_sc_scores = compute_similarity_scores(driver_sets, fvs_sets, mds_sets, sc_sets, similarity_type, summary_type)
+
+        #eg_fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+        #eg_mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+        #eg_sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
         
         tmp_list = [EG.number_of_edges(), threshold, eg_fvs_scores, eg_mds_scores, eg_sc_scores]
         similarity_scores.append(tmp_list)
         n=n+1
 
     return IG_Score, similarity_scores
+
+def compute_similarity_scores(driver_sets, fvs_sets, mds_sets, sc_sets, similarity_type, summary_type):
+    if summary_type == "max-mean" or summary_type == "min-mean":
+        fvs_scores = two_steps_compare_list_of_lists(driver_sets, fvs_sets, similarity_type, summary_type)
+        mds_scores = two_steps_compare_list_of_lists(driver_sets, mds_sets, similarity_type, summary_type)
+        sc_scores = two_steps_compare_list_of_lists(driver_sets, sc_sets, similarity_type, summary_type)
+    else:
+        fvs_scores = compare_list_of_lists(driver_sets, fvs_sets, similarity_type)
+        mds_scores = compare_list_of_lists(driver_sets, mds_sets, similarity_type)
+        sc_scores = compare_list_of_lists(driver_sets, sc_sets, similarity_type)
+
+    return fvs_scores, mds_scores, sc_scores
